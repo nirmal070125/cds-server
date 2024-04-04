@@ -3,7 +3,7 @@ import ballerina/io;
 
 listener http:Listener httpListener = new (8080);
 
-final RuleRepositoryConnector ruleRepositoryConnector = new();
+final MockRuleRepositoryConnector mockRuleRepositoryConnector = new();
 
 service / on httpListener {
     isolated resource function get cds\-services(http:Headers headers) returns Services|http:Response {
@@ -21,84 +21,96 @@ service / on httpListener {
             res.setTextPayload(authError.message());
             return res;
         }
-        Services services = ruleRepositoryConnector.discovery_endpoint();
+    
+        CdsService cdsService = {
+            "hook": "patient-view",
+            "title": "Static CDS Service Example",
+            "description": "An example of a CDS Service that returns a static set of cards",
+            "id": "static-patient-greeter",
+            "prefetch": {
+                "patientToGreet": "Patient/{{context.patientId}}"
+            }
+        };
+        CdsService[] supported_services = [cdsService];
+        Services services = {services: supported_services};
+
         return services;
     }
 
     isolated resource function post cds\-services/appointment\-book(@http:Payload CdsRequest payload) returns http:Response{
-        Card[]|error cards = ruleRepositoryConnector.appointment_book(payload);
-        http:Response response = getReponse(cards);
+        CdsResponse|error res = mockRuleRepositoryConnector.appointment_book(payload);
+        http:Response response = getReponse(res);
         return response;
     }
 
     isolated resource function post cds\-services/patient\-view(@http:Payload CdsRequest payload) returns http:Response{
-        Card[]|error cards = ruleRepositoryConnector.patient_view(payload);
-        http:Response response = getReponse(cards);
+        CdsResponse|error res = mockRuleRepositoryConnector.patient_view(payload);
+        http:Response response = getReponse(res);
         return response;
     }
 
     isolated resource function post cds\-services/order\-sign(@http:Payload CdsRequest payload) returns http:Response{
-        Card[]|error cards = ruleRepositoryConnector.order_sign(payload);
-        http:Response response = getReponse(cards);
+        CdsResponse|error res = mockRuleRepositoryConnector.order_sign(payload);
+        http:Response response = getReponse(res);
         return response;
     }
 
     isolated resource function post cds\-services/order\-select(@http:Payload CdsRequest payload) returns http:Response{
-        Card[]|error cards = ruleRepositoryConnector.order_select(payload);
-        http:Response response = getReponse(cards);
+        CdsResponse|error res = mockRuleRepositoryConnector.order_select(payload);
+        http:Response response = getReponse(res);
         return response;
     }
 
     isolated resource function post cds\-services/order\-dispatch(@http:Payload CdsRequest payload) returns http:Response{
-        Card[]|error cards = ruleRepositoryConnector.order_dispatch(payload);
-        http:Response response = getReponse(cards);
+        CdsResponse|error res = mockRuleRepositoryConnector.order_dispatch(payload);
+        http:Response response = getReponse(res);
         return response;
     }
 
     isolated resource function post cds\-services/encounter\-start(@http:Payload CdsRequest payload) returns http:Response{
-        Card[]|error cards = ruleRepositoryConnector.encounter_start(payload);
-        http:Response response = getReponse(cards);
+        CdsResponse|error res = mockRuleRepositoryConnector.encounter_start(payload);
+        http:Response response = getReponse(res);
         return response;
     }
 
     isolated resource function post cds\-services/encounter\-discharge(@http:Payload CdsRequest payload) returns http:Response{
-        Card[]|error cards = ruleRepositoryConnector.encounter_end(payload);
-        http:Response response = getReponse(cards);
+        CdsResponse|error res = mockRuleRepositoryConnector.encounter_end(payload);
+        http:Response response = getReponse(res);
         return response;
     }
 
     isolated resource function post cds\-services/appointment\-book/feedback(@http:Payload Feedback payload) {
         io:println("Received feedback for appointment-book: ", payload);
-        ruleRepositoryConnector.feedback("appointment-book", payload);
+        mockRuleRepositoryConnector.feedback("appointment-book", payload);
     }
 
     isolated resource function post cds\-services/patient\-view/feedback(@http:Payload Feedback payload) {
         io:println("Received feedback for patient-view: ", payload);
-        ruleRepositoryConnector.feedback("patient-view", payload);
+        mockRuleRepositoryConnector.feedback("patient-view", payload);
     }
 
     isolated resource function post cds\-services/order\-sign/feedback(@http:Payload Feedback payload) {
         io:println("Received feedback for order-sign: ", payload);
-        ruleRepositoryConnector.feedback("order-sign", payload);
+        mockRuleRepositoryConnector.feedback("order-sign", payload);
     }
 
     isolated resource function post cds\-services/order\-select/feedback(@http:Payload Feedback payload) {
         io:println("Received feedback for order-select: ", payload);
-        ruleRepositoryConnector.feedback("order-select", payload);
+        mockRuleRepositoryConnector.feedback("order-select", payload);
     }
 
     isolated resource function post cds\-services/order\-dispatch/feedback(@http:Payload Feedback payload) {
         io:println("Received feedback for order-dispatch: ", payload);
-        ruleRepositoryConnector.feedback("order-dispatch", payload);
+        mockRuleRepositoryConnector.feedback("order-dispatch", payload);
     }
 
     isolated resource function post cds\-services/encounter\-start/feedback(@http:Payload Feedback payload) {
         io:println("Received feedback for encounter-start: ", payload);
-        ruleRepositoryConnector.feedback("encounter-start", payload);
+        mockRuleRepositoryConnector.feedback("encounter-start", payload);
     }
 
     isolated resource function post cds\-services/encounter\-discharge/feedback(@http:Payload Feedback payload) {
         io:println("Received feedback for encouter-discharge: ", payload);
-        ruleRepositoryConnector.feedback("encounter-discharge", payload);
+        mockRuleRepositoryConnector.feedback("encounter-discharge", payload);
     }
 }

@@ -1,6 +1,6 @@
 import ballerina/http;
 
-isolated function getReponse(Card[]|error res) returns http:Response{
+isolated function getReponse(CdsResponse|error res) returns http:Response{
     http:Response response = new;
     if (res is error){
         // 412 Precondition Failed
