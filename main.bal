@@ -7,22 +7,22 @@ final MockRuleRepositoryConnector mockRuleRepositoryConnector = new();
 
 service / on httpListener {
     isolated resource function get cds\-services(http:Headers headers) returns Services|http:Response {
-        string|error jwt_token = headers.getHeader("Authorization");
-        if (jwt_token is error) {
-            http:Response res = new;
-            res.statusCode = 401;
-            res.setTextPayload(jwt_token.message());
-            return res;
-        }
-        error? authError = jwtAuth(jwt_token);
-        if (authError is error) {
-            http:Response res = new;
-            res.statusCode = 401;
-            res.setTextPayload(authError.message());
-            return res;
-        }
+        // string|error jwt_token = headers.getHeader("Authorization");
+        // if (jwt_token is error) {
+        //     http:Response res = new;
+        //     res.statusCode = 401;
+        //     res.setTextPayload(jwt_token.message());
+        //     return res;
+        // }
+        // error? authError = jwtAuth(jwt_token);
+        // if (authError is error) {
+        //     http:Response res = new;
+        //     res.statusCode = 401;
+        //     res.setTextPayload(authError.message());
+        //     return res;
+        // }
     
-        CdsService cdsService = {
+        CdsService patientCdsService = {
             "hook": "patient-view",
             "title": "Static CDS Service Example",
             "description": "An example of a CDS Service that returns a static set of cards",
@@ -31,7 +31,16 @@ service / on httpListener {
                 "patientToGreet": "Patient/{{context.patientId}}"
             }
         };
-        CdsService[] supported_services = [cdsService];
+        CdsService appointmentCdsService = {
+            "hook": "appointment-book",
+            "title": "Static CDS Service Example",
+            "description": "An example of a CDS Service that returns a static set of cards",
+            "id": "static-appointment-book",
+            "prefetch": {
+                "patientToGreet": "Patient/{{context.patientId}}"
+            }
+        };
+        CdsService[] supported_services = [patientCdsService, appointmentCdsService];
         Services services = {services: supported_services};
 
         return services;
