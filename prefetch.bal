@@ -123,25 +123,32 @@ class Prefetch {
     isolated function get_templates(string hook, Context context) returns map<string>|error{
         match hook {
             "appointment-book" => {
-                return self.get_appointment_book_prefetch(<AppointmentBookContext>context);
+                AppointmentBookContext appBookContext = check context.ensureType(AppointmentBookContext);
+                return self.get_appointment_book_prefetch(appBookContext);
             }
             "patient-view" => {
-                return self.get_patient_view_prefetch(<PatientViewContext>context);
+                PatientViewContext patientViewContext = check context.ensureType(PatientViewContext);
+                return self.get_patient_view_prefetch(patientViewContext);
             }
             "order-select" => {
-                return self.get_order_select_prefetch(<OrderSelectContext>context);
+                OrderSelectContext orderSelectContext = check context.ensureType(OrderSelectContext);
+                return self.get_order_select_prefetch(orderSelectContext);
             }
             "order-sign" => {
-                return self.get_order_sign_prefetch(<OrderSignContext>context);
+                OrderSignContext orderSignContext = check context.ensureType(OrderSignContext);
+                return self.get_order_sign_prefetch(orderSignContext);
             }
             "order-dispatch" => {
-                return self.get_order_dispatch_prefetch(<OrderDispatchContext>context);
+                OrderDispatchContext orderDispatchContext = check context.ensureType(OrderDispatchContext);
+                return self.get_order_dispatch_prefetch(orderDispatchContext);
             }
             "encounter-start" => {
-                return self.get_encounter_start_prefetch(<EncounterStartContext>context);
+                EncounterStartContext encounterStartContext = check context.ensureType(EncounterStartContext);
+                return self.get_encounter_start_prefetch(encounterStartContext);
             }
             "encounter-discharge" => {
-                return self.get_encounter_discharge_prefetch(<EncounterDischargeContext>context);
+                EncounterDischargeContext encounterDischargeContext = check context.ensureType(EncounterDischargeContext);
+                return self.get_encounter_discharge_prefetch(encounterDischargeContext);
             }
         }
 
