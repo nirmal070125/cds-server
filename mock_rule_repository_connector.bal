@@ -1,3 +1,4 @@
+import ballerina/http;
 import ballerinax/health.fhir.r4;
 
 # Implement this class to connect to the rule repository
@@ -6,155 +7,282 @@ import ballerinax/health.fhir.r4;
 isolated class MockRuleRepositoryConnector {
     *RuleRepositoryConnector;
 
+    private http:Client ruleRepositoryClient;
     private Prefetch prefetch;
 
     function init() {
-        //initialize the connection to the rule repository
         self.prefetch = new Prefetch();
+        self.ruleRepositoryClient = checkpanic new http:Client(MOCK_RULE_REPOSITORY_URL);
+    }
+
+    isolated function execute(CdsRequest cdsRequest) returns CdsResponse|error {
+        // If the prefetch is not available, fetch the prefetch from the EHR server and update the request body
+        lock {
+            CdsRequest req_clone = cdsRequest.clone();
+            if (cdsRequest.prefetch == ()) {
+                map<r4:DomainResource>|error res = self.prefetch.prefetch_from_EHR_server(req_clone.hook, req_clone.context, <string>req_clone.fhirServer, <FhirAuthorization>req_clone.fhirAuthorization);
+                if (res is error) {
+                    return res;
+                }
+                req_clone.prefetch = res;
+            }
+        }
+
+        match cdsRequest.hook {
+            "appointment-book" => {
+                return self.appointment_book(cdsRequest);
+            }
+            "order-sign" => {
+                return self.order_sign(cdsRequest);
+            }
+            "order-dispatch" => {
+                return self.order_dispatch(cdsRequest);
+            }
+            "encounter-start" => {
+                return self.encounter_start(cdsRequest);
+            }
+            "encounter-discharge" => {
+                return self.encounter_end(cdsRequest);
+            }
+            "order-select" => {
+                return self.order_select(cdsRequest);
+            }
+        }
+
+        // connect with the CRD server and do the relevant operation
+        // Get the response from the rule server
+        // put Coverage info in the extension : https://hl7.org/fhir/us/davinci-crd/StructureDefinition-ext-coverage-information.html
+        // Even if there are no cards to be returned, for the primary hooks return the coverage info in system action
+        return error("Invalid hook provided. Please provide a valid hook.");
     }
 
     isolated function appointment_book(CdsRequest cdsRequest) returns CdsResponse|error {
         lock {
-            map<r4:DomainResource> prefetch_resources = {};
-
-            // To avoid modifying the original request, clone the request
-            CdsRequest req_clone = cdsRequest.clone();
-
-            if (cdsRequest.prefetch == ()) {
-                map<r4:DomainResource>|error appointment_book_resources = self.prefetch.prefetch_from_EHR_server("appointment-book", req_clone.context, <string>req_clone.fhirServer, <FhirAuthorization>req_clone.fhirAuthorization);
-                if (appointment_book_resources is error) {
-                    return appointment_book_resources;
-                }
-                prefetch_resources = appointment_book_resources;
-            } else {
-                prefetch_resources = <map<r4:DomainResource>>req_clone.prefetch;
-            }
-
             // Develop the logic for the appointment book
             // Use the rule server
             CdsResponse cdsResponse = {
-                    "cards": [
-                        {
-                            "uuid": "4e0a3a1e-3283-4575-ab82-028d55fe2719",
-                            "summary": "Example Card",
-                            "indicator": "info",
-                            "detail": "This is an example card.",
-                            "source": {
-                                "label": "Static CDS Service Example",
-                                "url": "https://example.com",
-                                "icon": "https://example.com/img/icon-100px.png"
-                            },
-                            "links": [
+                "cards": [],
+                "systemActions": [
+                    {
+                        "type": "create",
+                        "description": "Annotated appointment request with Coverage information",
+                        "resource": {
+                            "resourceType": "Appointment",
+                            "id": "example-appointment-123",
+                            "status": "proposed",
+                            "description": "Sample appointment",
+                            "start": "2021-01-01T10:00:00Z",
+                            "end": "2021-01-01T11:00:00Z",
+                            "participant": [
                                 {
-                                    "label": "Google",
-                                    "url": "https://google.com",
-                                    "type": "absolute"
-                                },
-                                {
-                                    "label": "Github",
-                                    "url": "https://github.com",
-                                    "type": "absolute"
-                                },
-                                {
-                                    "label": "SMART Example App",
-                                    "url": "https://smart.example.com/launch",
-                                    "type": "smart",
-                                    "appContext": "{\"session\":3456356,\"settings\":{\"module\":4235}}"
+                                    "actor": {
+                                        "reference": "Patient/example-patient-123"
+                                    }
                                 }
-                            ]
-                        },
-                        {
-                            "summary": "Another card",
-                            "indicator": "warning",
-                            "source": {
-                                "label": "Static CDS Service Example"
-                            },
-                            "overrideReason": [
+                            ],
+                            "extension": [
                                 {
-                                "code": "reason-code-provided-by-service",
-                                "system": "http://example.org/cds-services/fhir/CodeSystem/override-reasons",
-                                "display": "Patient refused"
+                                    "url": "coverage",
+                                    "valueReference": {
+                                        "reference": "Coverage/example"
+                                    }
                                 },
                                 {
-                                "code": "12354",
-                                "system": "http://example.org/cds-services/fhir/CodeSystem/override-reasons",
-                                "display": "Contraindicated"
+                                    "url": "covered",
+                                    "valueCode": "conditional"
+                                },
+                                {
+                                    "url": "pa-needed",
+                                    "valueCode": "satisfied"
+                                },
+                                {
+                                    "url": "doc-needed",
+                                    "valueCode": "admin"
+                                },
+                                {
+                                    "url": "doc-purpose",
+                                    "valueCode": "withclaim"
+                                },
+                                {
+                                    "url": "info-needed",
+                                    "valueCode": "performer"
+                                },
+                                {
+                                    "url": "billingCode",
+                                    "valueCoding": {
+                                        "system": "http://www.ama-assn.org/go/cpt",
+                                        "code": "77067"
+                                    }
+                                },
+                                {
+                                    "url": "reason",
+                                    "valueCodeableConcept": {
+                                        "coding": [
+                                            {
+                                                "system": "http://hl7.org/fhir/us/davinci-crd/CodeSystem/temp",
+                                                "code": "gold-card"
+                                            }
+                                        ],
+                                        "text": "In-network required unless exigent circumstances"
+                                    }
                                 }
                             ]
                         }
-                    ]
+                    }
+                ]
             };
-            return cdsResponse.clone();
-        }
-    }
-
-    isolated function patient_view(CdsRequest cdsRequest) returns CdsResponse|error {
-        lock {
-            map<r4:DomainResource> prefetch_resources = {};
-
-            // To avoid modifying the original request, clone the request
-            CdsRequest req_clone = cdsRequest.clone();
-
-            if (cdsRequest.prefetch == ()) {
-                map<r4:DomainResource>|error patient_view_resources = self.prefetch.prefetch_from_EHR_server("patient-view", req_clone.context, <string>req_clone.fhirServer, <FhirAuthorization>req_clone.fhirAuthorization);
-                if (patient_view_resources is error) {
-                    return patient_view_resources;
-                }
-                prefetch_resources = patient_view_resources;
-            } else {
-                prefetch_resources = <map<r4:DomainResource>>req_clone.prefetch;
-            }
-
-            // Develop the logic for the appointment book
-            // Use the rule server
-            // Return the cards
-            Card[] cards = [];
-            CdsResponse cdsResponse = {cards: cards};
             return cdsResponse.clone();
         }
     }
 
     isolated function order_sign(CdsRequest cdsRequest) returns CdsResponse|error {
         lock {
-            map<r4:DomainResource> prefetch_resources = {};
-
-            // To avoid modifying the original request, clone the request
-            CdsRequest req_clone = cdsRequest.clone();
-
-            if (cdsRequest.prefetch == ()) {
-                map<r4:DomainResource>|error order_sign_resources = self.prefetch.prefetch_from_EHR_server("order-sign", req_clone.context, <string>req_clone.fhirServer, <FhirAuthorization>req_clone.fhirAuthorization);
-                if (order_sign_resources is error) {
-                    return order_sign_resources;
-                }
-                prefetch_resources = order_sign_resources;
-            } else {
-                prefetch_resources = <map<r4:DomainResource>>req_clone.prefetch;
-            }
-
             // Develop the logic for the appointment book
             // Use the rule server
             // Return the cards
             Card sample_card = {
                 "summary": "High risk for opioid overdose - taper now",
                 "indicator": "warning",
-                "links": [ 
+                "links": [
                     {
-                    "label": "CDC guideline for prescribing opioids for chronic pain",
-                    "type": "absolute",
-                    "url": "https://guidelines.gov/summaries/summary/50153/cdc-guideline-for-prescribing-opioids-for-chronic-pain---united-states-2016#420"
+                        "label": "CDC guideline for prescribing opioids for chronic pain",
+                        "type": "absolute",
+                        "url": "https://guidelines.gov/summaries/summary/50153/cdc-guideline-for-prescribing-opioids-for-chronic-pain---united-states-2016#420"
                     },
                     {
-                    "label": "MME Conversion Tables",
-                    "type": "absolute",
-                    "url": "https://www.cdc.gov/drugoverdose/pdf/calculating_total_daily_dose-a.pdf"
+                        "label": "MME Conversion Tables",
+                        "type": "absolute",
+                        "url": "https://www.cdc.gov/drugoverdose/pdf/calculating_total_daily_dose-a.pdf"
                     }
                 ],
                 "detail": "Total morphine milligram equivalent (MME) is 125mg. Taper to less than 50.",
-                "source":{
+                "source": {
                     "label": "Sample Label"
                 }
             };
-            Card[] cards = [sample_card];
+            Card sample_card_2 = {
+
+                summary: "Caution: Potential Drug-Kidney Interaction",
+                indicator: "warning",
+                detail: "Patient has a history of renal impairment. Consider dosage adjustment for the ordered medication.",
+                "source": {
+                    label: "ACME Drug Safety CDS",
+                    url: "http://acme.org/drug-safety-cds"
+                },
+                suggestions: [
+                    {
+                        "label": "Reduce dosage by 50%",
+                        "uuid": "suggestion-1",
+                        "actions": [
+                            {
+                                "type": "update",
+                                "description": "Adjust dosage in order form"
+                            }
+                        ]
+                    },
+                    {
+                        "label": "Reduce dosage by 70%",
+                        "uuid": "suggestion-2",
+                        "actions": [
+                            {
+                                "type": "update",
+                                "description": "Adjust dosage in order form"
+                            }
+                        ]
+                    },
+                    {
+                        "label": "Reduce dosage by 5%",
+                        "uuid": "suggestion-3",
+                        "actions": [
+                            {
+                                "type": "update",
+                                "description": "Adjust dosage in order form"
+                            }
+                        ]
+                    }
+                ],
+                "selectionBehavior": "at-most-one",
+                "links": [
+                    {
+                        "label": "Renal Dosing Guidelines",
+                        "url": "https://www.guidelines.gov/renal-dosing",
+                        "type": "absolute"
+                    }
+                ]
+            };
+
+            Action sysAction = {
+                "type": "create",
+                "description": "Annotated order with Coverage information",
+                "resource": {
+                    "resourceType": "ServiceRequest",
+                    "id": "example-MRI-59879846",
+                    "status": "draft",
+                    "intent": "order",
+                    "extension": [
+                        {
+                            "url": "coverage",
+                            "valueReference": {
+                                "reference": "Coverage/example"
+                            }
+                        },
+                        {
+                            "url": "covered",
+                            "valueCode": "conditional"
+                        },
+                        {
+                            "url": "pa-needed",
+                            "valueCode": "satisfied"
+                        },
+                        {
+                            "url": "doc-needed",
+                            "valueCode": "admin"
+                        },
+                        {
+                            "url": "doc-purpose",
+                            "valueCode": "withclaim"
+                        },
+                        {
+                            "url": "info-needed",
+                            "valueCode": "performer"
+                        },
+                        {
+                            "url": "billingCode",
+                            "valueCoding": {
+                                "system": "http://www.ama-assn.org/go/cpt",
+                                "code": "77067"
+                            }
+                        },
+                        {
+                            "url": "reason",
+                            "valueCodeableConcept": {
+                                "coding": [
+                                    {
+                                        "system": "http://hl7.org/fhir/us/davinci-crd/CodeSystem/temp",
+                                        "code": "gold-card"
+                                    }
+                                ],
+                                "text": "In-network required unless exigent circumstances"
+                            }
+                        }
+                    ]
+
+                }
+            };
+            Action[] sysActions = [sysAction];
+            Card[] cards = [sample_card, sample_card_2];
+            CdsResponse cdsResponse = {cards: cards, systemActions: sysActions};
+            return cdsResponse.clone();
+
+        }
+    }
+
+    isolated function order_dispatch(CdsRequest cdsRequest) returns CdsResponse|error {
+        lock {
+            // Develop the logic for the appointment book
+            // Use the rule server
+            // Return the cards
+            Card[] cards = [];
             CdsResponse cdsResponse = {cards: cards};
             return cdsResponse.clone();
         }
@@ -162,127 +290,17 @@ isolated class MockRuleRepositoryConnector {
 
     isolated function order_select(CdsRequest cdsRequest) returns CdsResponse|error {
         lock {
-            map<r4:DomainResource> prefetch_resources = {};
-
-            // To avoid modifying the original request, clone the request
-            CdsRequest req_clone = cdsRequest.clone();
-
-            if (cdsRequest.prefetch == ()) {
-                map<r4:DomainResource>|error order_select_resources = self.prefetch.prefetch_from_EHR_server("order-select", req_clone.context, <string>req_clone.fhirServer, <FhirAuthorization>req_clone.fhirAuthorization);
-                if (order_select_resources is error) {
-                    return order_select_resources;
-                }
-                prefetch_resources = order_select_resources;
-            } else {
-                prefetch_resources = <map<r4:DomainResource>>req_clone.prefetch;
-            }
-
             // Develop the logic for the appointment book
             // Use the rule server
             CdsResponse cdsResponse = {
-                    "cards":[
-
-                    ],
-                    "systemActions":[
-                        {
-                            "description" : "This is a sample Request",
-                            "type":"update",
-                            "resource":{
-                                "resourceType":"ServiceRequest",
-                                "id":"example-MRI-59879846",
-                                "extension":[
-                                {
-                                    "url":"http://fhir.org/argonaut/Extension/pama-rating",
-                                    "valueCodeableConcept":{
-                                        "coding":[
-                                            {
-                                            "system":"http://fhir.org/argonaut/CodeSystem/pama-rating",
-                                            "code":"appropriate"
-                                            }
-                                        ]
-                                    }
-                                },
-                                {
-                                    "url":"http://fhir.org/argonaut/Extension/pama-rating-consult-id",
-                                    "valueUri":"urn:uuid:55f3b7fc-9955-420e-a460-ff284b2956e6"
-                                }
-                                ],
-                                "status":"draft",
-                                "intent":"plan",
-                                "code":{
-                                "coding":[
-                                    {
-                                        "system":"http://loinc.org",
-                                        "code":"36801-9"
-                                    }
-                                ],
-                                "text":"MRA Knee Vessels Right"
-                                },
-                                "subject":{
-                                "reference":"Patient/MRI-59879846"
-                                },
-                                "reasonCode":[
-                                {
-                                    "coding":[
-                                        {
-                                            "system":"http://hl7.org/fhir/sid/icd-10",
-                                            "code":"S83.511",
-                                            "display":"Sprain of anterior cruciate ligament of right knee"
-                                        }
-                                    ]
-                                }
-                                ]
-                            }
-                        }
-                    ]
+                "cards": []
             };
-            return cdsResponse.clone();
-        }
-    }
-
-    isolated function order_dispatch(CdsRequest cdsRequest) returns CdsResponse|error {
-        lock {
-            map<r4:DomainResource> prefetch_resources = {};
-
-            // To avoid modifying the original request, clone the request
-            CdsRequest req_clone = cdsRequest.clone();
-
-            if (cdsRequest.prefetch == ()) {
-                map<r4:DomainResource>|error order_dispatch_resources = self.prefetch.prefetch_from_EHR_server("order-dispatch", req_clone.context, <string>req_clone.fhirServer, <FhirAuthorization>req_clone.fhirAuthorization);
-                if (order_dispatch_resources is error) {
-                    return order_dispatch_resources;
-                }
-                prefetch_resources = order_dispatch_resources;
-            } else {
-                prefetch_resources = <map<r4:DomainResource>>req_clone.prefetch;
-            }
-
-            // Develop the logic for the appointment book
-            // Use the rule server
-            // Return the cards
-            Card[] cards = [];
-            CdsResponse cdsResponse = {cards: cards};
             return cdsResponse.clone();
         }
     }
 
     isolated function encounter_start(CdsRequest cdsRequest) returns CdsResponse|error {
         lock {
-            map<r4:DomainResource> prefetch_resources = {};
-
-            // To avoid modifying the original request, clone the request
-            CdsRequest req_clone = cdsRequest.clone();
-
-            if (cdsRequest.prefetch == ()) {
-                map<r4:DomainResource>|error encounter_start_resources = self.prefetch.prefetch_from_EHR_server("encounter-start", req_clone.context, <string>req_clone.fhirServer, <FhirAuthorization>req_clone.fhirAuthorization);
-                if (encounter_start_resources is error) {
-                    return encounter_start_resources;
-                }
-                prefetch_resources = encounter_start_resources;
-            } else {
-                prefetch_resources = <map<r4:DomainResource>>req_clone.prefetch;
-            }
-
             // Develop the logic for the appointment book
             // Use the rule server
             // Return the cards
@@ -294,21 +312,6 @@ isolated class MockRuleRepositoryConnector {
 
     isolated function encounter_end(CdsRequest cdsRequest) returns CdsResponse|error {
         lock {
-            map<r4:DomainResource> prefetch_resources = {};
-
-            // To avoid modifying the original request, clone the request
-            CdsRequest req_clone = cdsRequest.clone();
-
-            if (cdsRequest.prefetch == ()) {
-                map<r4:DomainResource>|error encounter_end_resources = self.prefetch.prefetch_from_EHR_server("encounter-discharge", req_clone.context, <string>req_clone.fhirServer, <FhirAuthorization>req_clone.fhirAuthorization);
-                if (encounter_end_resources is error) {
-                    return encounter_end_resources;
-                }
-                prefetch_resources = encounter_end_resources;
-            } else {
-                prefetch_resources = <map<r4:DomainResource>>req_clone.prefetch;
-            }
-
             // Develop the logic for the appointment book
             // Use the rule server
             // Return the cards
@@ -318,7 +321,4 @@ isolated class MockRuleRepositoryConnector {
         }
     }
 
-    isolated function feedback(string hook, Feedback feedback) {
-        // Implement the feedback logic
-    }
 }

@@ -3,20 +3,6 @@ import ballerinax/health.fhir.r4;
 import ballerinax/health.fhir.r4.parser as fhirParser;
 
 class Prefetch {
-    // TODO: Implement this as a static class
-    isolated function get_patient_view_prefetch(PatientViewContext? patientViewContext = ()) returns map<string> {
-        string patientId = "{{context.patientId}}";
-        if (patientViewContext != ()) {
-            patientId = patientViewContext.patientId;
-        }
-
-        map<string> prefetch_templates = {
-            "patientToGreet": string `Patient/${patientId}`
-        };
-
-        return prefetch_templates;
-    }
-
     isolated function get_order_sign_prefetch(OrderSignContext? orderSigncontext = ()) returns map<string> {
         string patientId = "{{context.patientId}}";
         if (orderSigncontext != ()) {
@@ -125,10 +111,6 @@ class Prefetch {
             "appointment-book" => {
                 AppointmentBookContext appBookContext = check context.ensureType(AppointmentBookContext);
                 return self.get_appointment_book_prefetch(appBookContext);
-            }
-            "patient-view" => {
-                PatientViewContext patientViewContext = check context.ensureType(PatientViewContext);
-                return self.get_patient_view_prefetch(patientViewContext);
             }
             "order-select" => {
                 OrderSelectContext orderSelectContext = check context.ensureType(OrderSelectContext);
